@@ -40,7 +40,7 @@ public class GDocsModule {
 	private static HttpTransport HTTP_TRANSPORT;
 	private static final List<String> SCOPES_SHEETS = Arrays.asList(SheetsScopes.SPREADSHEETS, DriveScopes.DRIVE);
 	private static File file = new File("historysheets.txt");
-	private static final String patternId = "d/((\\w)*)/";
+	private static final String patternId = "d/(.*)/edit";
 	private static final Pattern sheetId = Pattern.compile(patternId);
 	private static String SHEET_ID = "";
 
