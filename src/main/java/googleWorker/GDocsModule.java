@@ -114,7 +114,7 @@ public class GDocsModule {
 		String spreadsheetId = getSheetId(link);
 		System.out.println(spreadsheetId);
 		String headerRange = "A1:R3";
-		String dataRange = "A4:R7";
+		String dataRange = "A4:R1000";
 		ValueRange dataResponse = service.spreadsheets().values()
 				.get(spreadsheetId, dataRange)
 				.execute();
