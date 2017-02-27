@@ -53,7 +53,7 @@ public class GDocsModule {
 			System.exit(1);
 		}
 	}
-
+	//авторизация в сервисах гугл и сохранение ключа сессии
 	private static Credential authorize() throws Exception {
 		InputStream in = GDocsModule.class.getResourceAsStream("/client_secret.json");
 		GoogleClientSecrets clientSecrets =
@@ -70,21 +70,21 @@ public class GDocsModule {
 				"Credentials saved to " + DATA_STORE_DIR.getAbsolutePath());
 		return credential;
 	}
-
+	//создание сервиса для работы с гугл-таблицами
 	private static Sheets getSheetsService() throws Exception {
 		Credential credential = authorize();
 		return new Sheets.Builder(HTTP_TRANSPORT, JSON_FACTORY, credential)
 				.setApplicationName(APPLICATION_NAME)
 				.build();
 	}
-
+	//создание сервиса для работы с гугл-Диском
 	private static Drive getDriveService() throws Exception {
 		Credential credential = authorize();
 		return new Drive.Builder(HTTP_TRANSPORT, JSON_FACTORY, credential)
 				.setApplicationName(APPLICATION_NAME)
 				.build();
 	}
-
+	//метод для удаления старых таблиц
 	private static void deleteFile(Drive service, String fileId) {
 		try {
 			service.files().delete(fileId).execute();
@@ -92,7 +92,7 @@ public class GDocsModule {
 			System.out.println("An error occurred: " + e);
 		}
 	}
-
+	// извлечение ID документа из ссылки 
 	private static String getSheetId(String link){
 		Matcher matcher = sheetId.matcher(link);
 		if(matcher.find()){
@@ -100,8 +100,9 @@ public class GDocsModule {
 		}
 		return SHEET_ID;
 	}
-
+	//разбиение главной таблицы на подтаблицы
 	public static void beatSheets(String link) throws Exception {
+		//удаление таблиц созданых в процессе прошлого запуска
 		List<String> oldSheets = Files.lines(Paths.get(String.valueOf(file)), StandardCharsets.UTF_8)
 				.collect(Collectors.toList());
 		if (oldSheets != null) {
@@ -109,25 +110,33 @@ public class GDocsModule {
 				deleteFile(getDriveService(), sheet);
 			}
 		}
+		
 		FileWriter WRITER = new FileWriter(file);
 		Sheets service = getSheetsService();
+		//получение ID таблицы
 		String spreadsheetId = getSheetId(link);
 		System.out.println(spreadsheetId);
+		//диапазон заголовка таблицы
 		String headerRange = "A1:R3";
+		//Диапазон данных
 		String dataRange = "A4:R1000";
+		//извлечение масива данных
 		ValueRange dataResponse = service.spreadsheets().values()
 				.get(spreadsheetId, dataRange)
 				.execute();
+		//извлечение массива заголовка
 		ValueRange headerRespone = service.spreadsheets().values()
 				.get(spreadsheetId, headerRange)
 				.execute();
-
+		
 		List<List<Object>> headerValues = headerRespone.getValues();
 		List<List<Object>> values = dataResponse.getValues();
 		if (values == null || values.size() == 0) {
 			System.out.println("No data found.");
 		} else {
+			//создание таблиц
 			for (List<Object> row : values) {
+				//создание заголовка + данных для дочерней таблицы
 				List<List<Object>> pasteData = new ArrayList<>();
 				pasteData.add(row);
 				ValueRange headRange = new ValueRange().setRange(headerRange).setValues(headerValues);
@@ -137,6 +146,7 @@ public class GDocsModule {
 				oList.add(oRange);
 				Spreadsheet spreadsheet = new Spreadsheet().setProperties(new SpreadsheetProperties()
 						.setTitle(row.get(1).toString()));
+				//создание дочерней таблицы, получение ее ID
 				String childSpreadSheetId = service
 						.spreadsheets()
 						.create(spreadsheet)
@@ -144,6 +154,7 @@ public class GDocsModule {
 						.getSpreadsheetId();
 				WRITER.write(childSpreadSheetId + "\n");
 				WRITER.flush();
+				//запись данных в созданную таблицу
 				BatchUpdateValuesRequest oRequest = new BatchUpdateValuesRequest()
 						.setValueInputOption("RAW")
 						.setData(oList);
