@@ -14,10 +14,7 @@ import com.google.api.services.drive.Drive;
 import com.google.api.services.drive.DriveScopes;
 import com.google.api.services.sheets.v4.Sheets;
 import com.google.api.services.sheets.v4.SheetsScopes;
-import com.google.api.services.sheets.v4.model.BatchUpdateValuesRequest;
-import com.google.api.services.sheets.v4.model.Spreadsheet;
-import com.google.api.services.sheets.v4.model.SpreadsheetProperties;
-import com.google.api.services.sheets.v4.model.ValueRange;
+import com.google.api.services.sheets.v4.model.*;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -105,49 +102,65 @@ public class GDocsModule {
 		//удаление таблиц созданых в процессе прошлого запуска
 		List<String> oldSheets = Files.lines(Paths.get(String.valueOf(file)), StandardCharsets.UTF_8)
 				.collect(Collectors.toList());
+		Drive serviceDrive = getDriveService();
 		if (oldSheets != null) {
 			for(String sheet : oldSheets) {
-				deleteFile(getDriveService(), sheet);
+				deleteFile(serviceDrive, sheet);
 			}
 		}
-		
 		FileWriter WRITER = new FileWriter(file);
-		Sheets service = getSheetsService();
+		Sheets serviceSheets = getSheetsService();
 		//получение ID таблицы
 		String spreadsheetId = getSheetId(link);
 		System.out.println(spreadsheetId);
 		//диапазон заголовка таблицы
-		String headerRange = "A1:R3";
+		String headerRange = "A1:T3";
 		//Диапазон данных
-		String dataRange = "A4:R1000";
-		//извлечение масива данных
-		ValueRange dataResponse = service.spreadsheets().values()
-				.get(spreadsheetId, dataRange)
-				.execute();
+		String dataRange = "A4:N1000";
+		//Диапазон формул
+		String formulRange = "O4:Z4";
 		//извлечение массива заголовка
-		ValueRange headerRespone = service.spreadsheets().values()
+		ValueRange headerRespone = serviceSheets.spreadsheets().values()
 				.get(spreadsheetId, headerRange)
+				.setPrettyPrint(true)
+				.setValueRenderOption("FORMULA")
 				.execute();
+		//извлечение масива данных
+		ValueRange dataResponse = serviceSheets.spreadsheets().values()
+				.get(spreadsheetId, dataRange)
+				.setValueRenderOption("FORMULA")
+				.execute();
+		//извлечение массива формул
+
+		ValueRange formulRespone = serviceSheets.spreadsheets().values()
+				.get(spreadsheetId, formulRange)
+				.setPrettyPrint(true)
+				.setValueRenderOption("FORMULA")
+				.execute();
+
 		
 		List<List<Object>> headerValues = headerRespone.getValues();
-		List<List<Object>> values = dataResponse.getValues();
-		if (values == null || values.size() == 0) {
+		List<List<Object>> dataValues = dataResponse.getValues();
+		List<List<Object>> formulValues = formulRespone.getValues();
+		if (dataValues == null || dataValues.size() == 0) {
 			System.out.println("No data found.");
 		} else {
 			//создание таблиц
-			for (List<Object> row : values) {
+			for (List<Object> row : dataValues) {
 				//создание заголовка + данных для дочерней таблицы
 				List<List<Object>> pasteData = new ArrayList<>();
 				pasteData.add(row);
-				ValueRange headRange = new ValueRange().setRange(headerRange).setValues(headerValues);
-				ValueRange oRange = new ValueRange().setRange("A4:Z4").setValues(pasteData);
-				List<ValueRange> oList = new ArrayList<>();
-				oList.add(headRange);
-				oList.add(oRange);
+				ValueRange headValueRange = new ValueRange().setRange(headerRange).setValues(headerValues);
+				ValueRange dataValueRange = new ValueRange().setRange(dataRange).setValues(pasteData);
+				ValueRange formulValueRange = new ValueRange().setRange(formulRange).setValues(formulValues);
+				List<ValueRange> childList = new ArrayList<>();
+				childList.add(headValueRange);
+				childList.add(dataValueRange);
+				childList.add(formulValueRange);
 				Spreadsheet spreadsheet = new Spreadsheet().setProperties(new SpreadsheetProperties()
-						.setTitle(row.get(1).toString()));
+						.setTitle(row.get(1).toString()).setAutoRecalc("ON_CHANGE"));
 				//создание дочерней таблицы, получение ее ID
-				String childSpreadSheetId = service
+				String childSpreadSheetId = serviceSheets
 						.spreadsheets()
 						.create(spreadsheet)
 						.execute()
@@ -156,9 +169,9 @@ public class GDocsModule {
 				WRITER.flush();
 				//запись данных в созданную таблицу
 				BatchUpdateValuesRequest oRequest = new BatchUpdateValuesRequest()
-						.setValueInputOption("RAW")
-						.setData(oList);
-				service.spreadsheets().values().batchUpdate(childSpreadSheetId, oRequest).execute();
+						.setValueInputOption("USER_ENTERED")
+						.setData(childList);
+				serviceSheets.spreadsheets().values().batchUpdate(childSpreadSheetId, oRequest).setPrettyPrint(true).execute();
 			}
 		}
 	}
