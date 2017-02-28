@@ -118,7 +118,7 @@ public class GDocsModule {
 		//Диапазон данных
 		String dataRange = "A4:N1000";
 		//Диапазон формул
-		String formulRange = "O4:Z4";
+		String formulRange = "O4:R4";
 		//извлечение массива заголовка
 		ValueRange headerRespone = serviceSheets.spreadsheets().values()
 				.get(spreadsheetId, headerRange)
